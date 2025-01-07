@@ -4,7 +4,12 @@ It is a new chromiun based browser built on electronjs with typescript and react
 
 # Features
 
-* [ ]
+* [X] Navigation tabs
+* [X] Input URL
+* [X] Basic Controls
+* [ ] Themes
+* [ ] Browser settings
+* [ ] Extensions
 
 ## Project Setup
 
@@ -15,6 +20,7 @@ $ npm install
 ```
 
 ### Development
+
 
 ```bash
 $ npm run dev
