@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useRef, useState, useEffect } from 'react'
-import { ArrowLeft, ArrowRight, Logs, Plus, RefreshCcw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Plus, RefreshCcw } from 'lucide-react'
 import { Button } from './components/ui/button'
 import { Input } from './components/ui/input'
 import WebView from './components/WebView'
 import Layout from './Layout'
+import Settings from './components/Settings'
 
 function App(): JSX.Element {
   const webViewRef = useRef<{
@@ -15,7 +16,14 @@ function App(): JSX.Element {
     removeEventListener: (event: string, handler: (event: any) => void) => void
   } | null>(null)
 
-  const [tabs, setTabs] = useState([{ id: 1, url: 'https://www.google.com.ar/' }])
+  const [tabs, setTabs] = useState<{ id: number; url: string; history: string[]; forwardStack: string[] }[]>([
+    {
+      id: 1,
+      url: 'https://www.google.com.ar/',
+      history: ['https://www.google.com.ar/'],
+      forwardStack: []
+    }
+  ])
   const [activeTabId, setActiveTabId] = useState(1)
   const [inputUrl, setInputUrl] = useState(tabs[0].url)
 
@@ -23,7 +31,19 @@ function App(): JSX.Element {
     if (webViewRef.current) {
       const handleNavigation = (event: { url: string }): void => {
         setTabs((prevTabs) =>
-          prevTabs.map((tab) => (tab.id === activeTabId ? { ...tab, url: event.url } : tab))
+          prevTabs.map((tab) => {
+            if (tab.id === activeTabId) {
+              if (tab.url !== event.url) {
+                return {
+                  ...tab,
+                  url: event.url,
+                  history: [...tab.history, event.url],
+                  forwardStack: []
+                }
+              }
+            }
+            return tab
+          })
         )
         setInputUrl(event.url)
       }
@@ -37,11 +57,39 @@ function App(): JSX.Element {
   }, [webViewRef, activeTabId])
 
   const handleBack = (): void => {
-    webViewRef.current?.goBack()
+    setTabs((prevTabs) =>
+      prevTabs.map((tab) => {
+        if (tab.id === activeTabId && tab.history.length > 1) {
+          const updatedHistory = tab.history.slice(0, -1)
+          const currentUrl = tab.url
+          return {
+            ...tab,
+            url: updatedHistory[updatedHistory.length - 1],
+            history: updatedHistory,
+            forwardStack: [currentUrl, ...tab.forwardStack]
+          }
+        }
+        return tab
+      })
+    )
   }
 
   const handleForward = (): void => {
-    webViewRef.current?.goForward()
+    setTabs((prevTabs) =>
+      prevTabs.map((tab) => {
+        if (tab.id === activeTabId && tab.forwardStack.length > 0) {
+          const newUrl = tab.forwardStack[0]
+          const updatedForwardStack = tab.forwardStack.slice(1)
+          return {
+            ...tab,
+            url: newUrl,
+            history: [...tab.history, newUrl],
+            forwardStack: updatedForwardStack
+          }
+        }
+        return tab
+      })
+    )
   }
 
   const handleRefresh = (): void => {
@@ -53,16 +101,33 @@ function App(): JSX.Element {
   }
 
   const handleGoToUrl = (): void => {
+    const searchQuery = inputUrl.trim()
+    const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`
+
     setTabs((prevTabs) =>
-      prevTabs.map((tab) => (tab.id === activeTabId ? { ...tab, url: inputUrl } : tab))
+      prevTabs.map((tab) => {
+        if (tab.id === activeTabId) {
+          const updatedHistory = [...tab.history, googleSearchUrl]
+          return { ...tab, url: googleSearchUrl, history: updatedHistory, forwardStack: [] }
+        }
+        return tab
+      })
     )
   }
 
   const handleNewTab = (): void => {
     const newTabId = tabs.length + 1
-    setTabs([...tabs, { id: newTabId, url: 'https://www.google.com.ar/' }])
+    setTabs([
+      ...tabs,
+      {
+        id: newTabId,
+        url: 'https://www.google.com.ar/',
+        history: ['https://www.google.com.ar/'],
+        forwardStack: []
+      }
+    ])
     setActiveTabId(newTabId)
-    setInputUrl('https://www.google.com.ar/')
+    setInputUrl('')
   }
 
   const handleGoToUrlTab = (tabId: number): void => {
@@ -72,10 +137,22 @@ function App(): JSX.Element {
       setInputUrl(selectedTab.url)
     }
   }
+  const handleTabEliminate = (tabId: number): void => {
+    console.log('Tab eliminado:', tabId);
 
-  const log = (): void => {
-    console.log(tabs)
-  }
+    // Filtramos el tab que queremos eliminar
+    const newTabs = tabs.filter(tab => tab.id !== tabId);
+
+    // Reasignamos los IDs para que queden consecutivos
+    const updatedTabs = newTabs.map((tab, index) => ({
+      ...tab,
+      id: index + 1  // Reasignamos el ID de acuerdo con su posición en el array
+    }));
+
+    // Actualizamos el estado con el array de tabs reorganizado
+    setTabs(updatedTabs);
+  };
+
 
   return (
     <>
@@ -92,17 +169,15 @@ function App(): JSX.Element {
         <Input
           value={inputUrl}
           onChange={handleUrlChange}
-          placeholder="Enter URL"
+          placeholder="Enter URL or Search Query"
           className="flex-1"
         />
-        <Button onClick={handleGoToUrl}>Go</Button>
+        <Button onClick={handleGoToUrl}>Search</Button>
 
         <Button onClick={handleNewTab}>
           <Plus />
         </Button>
-        <Button onClick={log}>
-          <Logs />
-        </Button>
+        <Settings />
       </div>
       {tabs.map((item) => (
         <div
@@ -117,7 +192,7 @@ function App(): JSX.Element {
         </div>
       ))}
 
-      <Layout items={tabs} goTab={handleGoToUrlTab} activeUrl={inputUrl} />
+      <Layout items={tabs} goTab={handleGoToUrlTab} activeUrl={inputUrl} tabEliminate={handleTabEliminate}/>
     </>
   )
 }
